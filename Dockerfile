@@ -6,7 +6,7 @@
 # (BUILDPLATFORM) and emits a GOOS/GOARCH target binary, so CI does NOT pay
 # QEMU-emulated Go compilation for arm64 — only the tiny apk runtime stage
 # runs under QEMU.
-FROM --platform=$BUILDPLATFORM golang:1.24 AS build
+FROM --platform=$BUILDPLATFORM golang:1.27 AS build
 ARG VERSION=v1.102.3
 ARG TARGETOS=linux
 ARG TARGETARCH=amd64
@@ -16,7 +16,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 
 # Minimal runtime. Non-root (uid 10001). The container listens on 8443 and
 # 3478/udp (both >1024), so no NET_BIND_SERVICE privilege is needed.
-FROM alpine:3.20
+FROM alpine:3.23
 RUN apk add --no-cache ca-certificates \
  && adduser -D -u 10001 derper
 COPY --from=build /derper /usr/local/bin/derper
