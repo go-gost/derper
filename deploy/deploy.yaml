@@ -1,0 +1,134 @@
+# k3s deployment of a self-hosted DERP relay + STUN server.
+#
+# TLS is terminated by Traefik (k3s's bundled ingress controller) via a
+# standard Ingress; derper itself runs plain HTTP/WS (no TLS). WebSocket is
+# forwarded by Traefik natively — the DERP 30s keepalive keeps the long-lived
+# connection through any idle timeout.
+#
+# Before applying:
+#   1. Pin the image tag to the derper version you want.
+#   2. Replace every derp.example.com with your real public hostname.
+#
+# No cert secret is managed here: the Ingress tls block carries no secretName,
+# so Traefik serves its bundled default (self-signed) certificate, which does
+# not match the hostname. TLS clients that verify certificates will reject it
+# — serve a trusted certificate instead: point the tls block at a
+# kubernetes.io/tls secret, or set a Traefik TLSStore defaultCertificate.
+#
+# SECURITY: -verify-clients=false runs an OPEN relay — any client that knows
+# the address may relay packets through it, and the relay can observe the
+# bytes it forwards. Only expose a relay you intend to be public, and encrypt
+# the payload of whatever you carry over it.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: derp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: derper
+  namespace: derp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: derper
+  template:
+    metadata:
+      labels:
+        app: derper
+    spec:
+      containers:
+        - name: derper
+          image: gogost/derper:1.102.3
+          args:
+            # Explicit IPv4 bind; -a is NOT :443 and -certmode is not manual,
+            # so derper serves plain HTTP/WS (serveTLS=false) — no cert needed.
+            - -a=0.0.0.0:8443
+            - -stun=true
+            - -stun-port=3478
+            # Open relay: no client verification (no registered keys/mesh).
+            - -verify-clients=false
+          ports:
+            - name: http-derp
+              containerPort: 8443
+              protocol: TCP
+            - name: stun
+              containerPort: 3478
+              protocol: UDP
+          readinessProbe:
+            tcpSocket:
+              port: 8443
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+# Backend service for Traefik (plain HTTP DERP). ClusterIP only — external
+# HTTPS is handled by the Ingress.
+apiVersion: v1
+kind: Service
+metadata:
+  name: derper
+  namespace: derp
+spec:
+  type: ClusterIP
+  selector:
+    app: derper
+  ports:
+    - name: http-derp
+      port: 8443
+      targetPort: 8443
+      protocol: TCP
+---
+# STUN must bypass Traefik (it is UDP); expose it directly. LoadBalancer uses
+# k3s's built-in servicelb — swap to NodePort/MetalLB as needed.
+apiVersion: v1
+kind: Service
+metadata:
+  name: derper-stun
+  namespace: derp
+spec:
+  type: LoadBalancer
+  selector:
+    app: derper
+  ports:
+    - name: stun
+      port: 3478
+      targetPort: 3478
+      protocol: UDP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: derper
+  namespace: derp
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - derp.example.com # no secretName → Traefik's default self-signed cert
+  rules:
+    - host: derp.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: derper
+                port:
+                  number: 8443

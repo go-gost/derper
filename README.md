@@ -1,8 +1,7 @@
 # derper image
 
 Self-hosted [Tailscale DERP](https://tailscale.com/kb/1232/derp-servers) relay +
-STUN server image for [go-gost](https://gost.run) p2p, pinned to a specific
-`tailscale.com/cmd/derper` version.
+STUN server image, pinned to a specific `tailscale.com/cmd/derper` version.
 
 Built image: [`gogost/derper`](https://hub.docker.com/r/gogost/derper) (multi-arch `linux/amd64` + `linux/arm64`).
 
@@ -20,7 +19,7 @@ GitHub Actions (`.github/workflows/build.yaml`) builds and pushes to Docker Hub 
 |---|---|
 | push to `main` | `latest` |
 | push tag `vX.Y.Z` | `X.Y.Z` |
-| manual `workflow_dispatch` (with `version` input) | `vX.Y.Z` and `X.Y.Z` |
+| manual `workflow_dispatch` (with `version` input) | `X.Y.Z` |
 | weekly schedule | `latest` (rebuilt for base-image updates) |
 
 ## Bumping the derper version
@@ -31,7 +30,22 @@ Either:
 2. Edit `ARG VERSION=` in the `Dockerfile` (this is the default used by
    `main`/schedule builds) and push to `main`.
 
+## Deploy
+
+Ready-to-use manifests live in [deploy/](deploy/):
+
+| Platform | File | Mode |
+|---|---|---|
+| Kubernetes / k3s | [deploy.yaml](deploy/deploy.yaml) | plain HTTP behind a Traefik Ingress (TLS terminated there) |
+| Single host | [docker-compose.yml](deploy/docker-compose.yml) | plain HTTP/WS on `:8443` |
+
+The `deploy.yaml` Ingress carries no cert secret, so Traefik serves its
+default self-signed certificate; supply a trusted one (secret or TLSStore) if
+your clients verify certificates.
+
 ## Run
+
+Single container with derper terminating TLS itself (manual certs):
 
 ```bash
 docker run -d --name derper \
@@ -43,4 +57,4 @@ docker run -d --name derper \
 ```
 
 `-certdir` expects files named literally `<hostname>.crt` and `<hostname>.key`.
-`-verify-clients=false` is required for go-gost p2p (open relay).
+`-verify-clients=false` disables client verification (an open relay).
