@@ -19,7 +19,7 @@ GitHub Actions (`.github/workflows/build.yaml`) builds and pushes to Docker Hub 
 | Trigger | Image tag |
 |---|---|
 | push to `main` | `latest` |
-| push tag `vX.Y.Z` | `vX.Y.Z` and `X.Y.Z` |
+| push tag `vX.Y.Z` | `X.Y.Z` |
 | manual `workflow_dispatch` (with `version` input) | `vX.Y.Z` and `X.Y.Z` |
 | weekly schedule | `latest` (rebuilt for base-image updates) |
 
@@ -37,7 +37,7 @@ Either:
 docker run -d --name derper \
   -p 443:8443 -p 3478:3478/udp \
   -v "$PWD/certs:/certs:ro" \
-  gogost/derper:v1.102.3 \
+  gogost/derper:1.102.3 \
   -a=0.0.0.0:8443 -http-port=8080 -stun=true -stun-port=3478 \
   -verify-clients=false -certmode=manual -certdir=/certs -hostname=derp.example.com
 ```

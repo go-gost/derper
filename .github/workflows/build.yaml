@@ -60,7 +60,6 @@ jobs:
           images: gogost/derper
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
-            type=semver,pattern=v{{version}}
             type=semver,pattern={{version}}
 
       - name: Build and push
