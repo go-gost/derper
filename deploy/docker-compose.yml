@@ -28,10 +28,21 @@ services:
       - -stun=true
       - -stun-port=3478
       - -verify-clients=false
+      # -c is mandatory for the non-root image (root would default to
+      # /var/lib/derper/derper.key). The file holds the relay's private key,
+      # auto-generated on first start. A fresh named volume mounted here is
+      # seeded from the image's /home/derper (owned by the non-root derper),
+      # so derper can write it without extra chown.
+      - -c=/home/derper/derper.key
     ports:
       - "8443:8443/tcp"   # ws://host:8443/derp
       - "3478:3478/udp"   # STUN, for NAT hole punching
+    volumes:
+      - derper-data:/home/derper # persists the relay identity across restarts
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+
+volumes:
+  derper-data:

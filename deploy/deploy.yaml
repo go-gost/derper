@@ -15,6 +15,11 @@
 # — serve a trusted certificate instead: point the tls block at a
 # kubernetes.io/tls secret, or set a Traefik TLSStore defaultCertificate.
 #
+# derper -c is mandatory for the non-root image (root would default to
+# /var/lib/derper/derper.key). The file holds the relay's private key,
+# auto-generated on first start; it is kept on a PVC so the relay's identity
+# survives pod restarts.
+#
 # SECURITY: -verify-clients=false runs an OPEN relay — any client that knows
 # the address may relay packets through it, and the relay can observe the
 # bytes it forwards. Only expose a relay you intend to be public, and encrypt
@@ -24,6 +29,17 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: derp
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: derper-data
+  namespace: derp
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -40,6 +56,8 @@ spec:
       labels:
         app: derper
     spec:
+      securityContext:
+        fsGroup: 10001 # make the PVC group-writable for the non-root derper
       containers:
         - name: derper
           image: gogost/derper:1.102.3
@@ -51,6 +69,8 @@ spec:
             - -stun-port=3478
             # Open relay: no client verification (no registered keys/mesh).
             - -verify-clients=false
+            # -c is mandatory for non-root; config holds the relay key.
+            - -c=/home/derper/derper.key
           ports:
             - name: http-derp
               containerPort: 8443
@@ -58,6 +78,9 @@ spec:
             - name: stun
               containerPort: 3478
               protocol: UDP
+          volumeMounts:
+            - name: data
+              mountPath: /home/derper
           readinessProbe:
             tcpSocket:
               port: 8443
@@ -76,6 +99,10 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: derper-data
 ---
 # Backend service for Traefik (plain HTTP DERP). ClusterIP only — external
 # HTTPS is handled by the Ingress.

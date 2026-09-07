@@ -51,10 +51,18 @@ Single container with derper terminating TLS itself (manual certs):
 docker run -d --name derper \
   -p 443:8443 -p 3478:3478/udp \
   -v "$PWD/certs:/certs:ro" \
+  -v derper-data:/home/derper \
   gogost/derper:1.102.3 \
   -a=0.0.0.0:8443 -http-port=8080 -stun=true -stun-port=3478 \
-  -verify-clients=false -certmode=manual -certdir=/certs -hostname=derp.example.com
+  -verify-clients=false -certmode=manual -certdir=/certs -hostname=derp.example.com \
+  -c=/home/derper/derper.key
 ```
 
 `-certdir` expects files named literally `<hostname>.crt` and `<hostname>.key`.
 `-verify-clients=false` disables client verification (an open relay).
+
+`-c` is mandatory for the non-root image (with root it would default to
+`/var/lib/derper/derper.key`): it holds the relay's private key,
+auto-generated on first start. The `-v derper-data:/home/derper` volume keeps
+that identity across restarts — a fresh named volume is seeded from the
+image's `/home/derper` (owned by the non-root user), so no extra `chown`.
