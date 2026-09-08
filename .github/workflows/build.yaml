@@ -72,3 +72,8 @@ jobs:
             VERSION=${{ steps.version.outputs.version }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # buildx attaches SLSA provenance/SBOM attestations by default (since
+          # v0.10). They push as extra manifests with platform "unknown/unknown",
+          # which breaks manifest resolution on arm64 in containerd/CRI. Disable.
+          provenance: false
+          sbom: false
