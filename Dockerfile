@@ -8,8 +8,11 @@
 # runs under QEMU.
 FROM --platform=$BUILDPLATFORM golang:1.27 AS build
 ARG VERSION=v1.102.3
-ARG TARGETOS=linux
-ARG TARGETARCH=amd64
+# No defaults for TARGETOS/TARGETARCH: an explicit default overrides BuildKit's
+# auto-injected target value, so an arm64 build would stay TARGETARCH=amd64 and
+# emit an amd64 binary into the arm64 image.
+ARG TARGETOS
+ARG TARGETARCH
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
       go install tailscale.com/cmd/derper@${VERSION} \
  && find "$(go env GOPATH)/bin" -type f -name derper -exec cp {} /derper \;
